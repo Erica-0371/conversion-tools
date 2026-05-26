@@ -1,0 +1,1121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chat Viewer</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f0f2f5;color:#1a1a1a;line-height:1.6}
+.header{background:#fff;border-bottom:1px solid #e0e0e0;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.header h1{font-size:20px;font-weight:600}
+.header-actions{display:flex;gap:10px}
+.btn{padding:8px 18px;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:500;transition:all .2s}
+.btn-primary{background:#6366f1;color:#fff}.btn-primary:hover{background:#4f46e5}
+.btn-secondary{background:#e5e7eb;color:#374151}.btn-secondary:hover{background:#d1d5db}
+.btn-outline{background:transparent;border:1px dashed #c7d2fe;color:#6366f1}.btn-outline:hover{background:#eef2ff}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* Landing */
+.landing{max-width:640px;margin:120px auto;text-align:center;padding:0 20px}
+.landing h2{font-size:28px;margin-bottom:8px}
+.landing p{color:#6b7280;margin-bottom:32px}
+.drop-zone{border:2px dashed #c7d2fe;border-radius:16px;padding:64px 40px;background:#fafbff;cursor:pointer;transition:all .25s}
+.drop-zone:hover,.drop-zone.dragover{border-color:#6366f1;background:#eef2ff}
+.drop-zone-icon{font-size:48px;margin-bottom:16px;display:block}
+.drop-zone-text{font-size:16px;color:#4b5563}
+.drop-zone-hint{font-size:13px;color:#9ca3af;margin-top:8px}
+.privacy{margin-top:24px;padding:12px 20px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;font-size:13px;color:#166534;display:inline-block}
+input[type=file]{display:none}
+
+/* Layout with sidebar */
+.app-layout{display:flex;height:calc(100vh - 57px)}
+.sidebar{width:280px;min-width:280px;background:#fff;border-right:1px solid #e0e0e0;display:flex;flex-direction:column;overflow:hidden}
+.sidebar-header{padding:12px 16px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between}
+.sidebar-header h3{font-size:14px;font-weight:600;color:#374151}
+.sidebar-count{font-size:12px;color:#9ca3af;background:#f3f4f6;padding:2px 8px;border-radius:10px}
+.sidebar-filter{padding:8px 12px;border-bottom:1px solid #e5e7eb}
+.sidebar-filter-row{display:flex;align-items:center;gap:4px;margin-bottom:4px}
+.sidebar-filter-row:last-child{margin-bottom:0}
+.sidebar-filter input[type=date]{font-size:12px;padding:3px 6px;border:1px solid #e5e7eb;border-radius:4px;flex:1;min-width:0;color:#374151}
+.sidebar-filter input[type=text]{font-size:13px;padding:6px 10px;border:1px solid #e5e7eb;border-radius:6px;color:#374151;outline:none;transition:border-color .2s}
+.sidebar-filter input[type=text]:focus{border-color:#6366f1}
+.sidebar-filter select{font-size:12px;padding:3px 6px;border:1px solid #e5e7eb;border-radius:4px;flex:1;color:#374151;background:#fff}
+.filter-clear-btn{background:none;border:none;font-size:16px;color:#9ca3af;cursor:pointer;padding:0 4px;line-height:1}
+.filter-clear-btn:hover{color:#ef4444}
+.sidebar-list{flex:1;overflow-y:auto;padding:8px}
+.sidebar-item{padding:10px 12px;border-radius:8px;cursor:pointer;margin-bottom:4px;transition:all .15s;border:1px solid transparent}
+.sidebar-item:hover{background:#f3f4f6}
+.sidebar-item.active{background:#eef2ff;border-color:#c7d2fe}
+.sidebar-item-title{font-size:13px;font-weight:600;color:#1f2937;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sidebar-item-preview{font-size:12px;color:#6b7280;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sidebar-item-meta{font-size:11px;color:#9ca3af;margin-top:4px;display:flex;gap:8px}
+.search-hits{margin-top:4px}
+.search-hit{font-size:12px;color:#374151;padding:3px 6px;background:#f9fafb;border-radius:4px;margin-top:2px;cursor:pointer;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;transition:background .15s}
+.search-hit:hover{background:#eef2ff}
+.search-hit mark{background:#fde68a;color:#92400e;padding:0 1px;border-radius:2px}
+.hit-role{display:inline-block;font-size:10px;font-weight:600;color:#fff;background:#9ca3af;border-radius:3px;padding:0 4px;margin-right:4px}
+.msg-highlight{animation:highlightPulse 2.5s ease}
+@keyframes highlightPulse{0%,20%{box-shadow:0 0 0 3px #fbbf24}100%{box-shadow:none}}
+.search-mark{background:#fde68a;color:#92400e;padding:1px 2px;border-radius:2px}
+.sidebar-footer{padding:12px 16px;border-top:1px solid #e5e7eb}
+.sidebar-item .remove-btn{float:right;opacity:0;font-size:16px;color:#9ca3af;background:none;border:none;cursor:pointer;padding:0 4px;line-height:1}
+.sidebar-item:hover .remove-btn{opacity:1}
+.sidebar-item .remove-btn:hover{color:#ef4444}
+.sidebar-item .batch-check{float:left;margin-right:8px;margin-top:2px;display:none;width:16px;height:16px;cursor:pointer;accent-color:#6366f1}
+.batch-mode .batch-check{display:inline-block}
+.batch-mode .remove-btn{display:none}
+
+/* Main area */
+.main-area{flex:1;overflow-y:auto;padding:24px 16px 100px}
+.chat-container{max-width:860px;margin:0 auto}
+.msg{margin-bottom:20px;animation:fadeIn .3s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.msg-header{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:13px;color:#6b7280}
+.msg-role{font-weight:600;font-size:14px}
+.msg-role.user{color:#2563eb}
+.msg-role.assistant{color:#059669}
+.msg-role.tool_call{color:#d97706}
+.msg-role.system{color:#9333ea}
+.msg-time{margin-left:auto;font-size:12px}
+.msg-body{padding:14px 18px;border-radius:12px;overflow-x:auto}
+.msg.user-msg .msg-body{background:#e0edff;border-left:3px solid #3b82f6}
+.msg.assistant-msg .msg-body{background:#fff;border-left:3px solid #10b981;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.msg.tool_call-msg .msg-body{background:#fffbeb;border-left:3px solid #f59e0b}
+.msg.tool-result-msg .msg-body{background:#faf5ff;border-left:3px solid #a855f7}
+.msg.system-msg .msg-body{background:#fefce8;border-left:3px solid #eab308;font-size:13px;color:#854d0e}
+
+/* Collapsible */
+.collapsible{margin:8px 0}
+.collapsible-toggle{display:flex;align-items:center;gap:6px;cursor:pointer;padding:6px 10px;background:#f3f4f6;border-radius:6px;font-size:13px;color:#4b5563;border:none;width:100%;text-align:left;font-family:inherit;transition:background .2s}
+.collapsible-toggle:hover{background:#e5e7eb}
+.collapsible-toggle .arrow{transition:transform .2s;display:inline-block;font-size:10px}
+.collapsible-toggle.open .arrow{transform:rotate(90deg)}
+.collapsible-content{display:none;margin-top:6px;padding:10px 12px;background:#f9fafb;border-radius:6px;font-size:13px;overflow-x:auto}
+.collapsible-content.open{display:block}
+.collapsible.thinking .collapsible-toggle{background:#fdf4ff;color:#7e22ce}
+.collapsible.thinking .collapsible-content{background:#fdf4ff;color:#6b21a8}
+.collapsible.tool-use .collapsible-toggle{background:#fffbeb;color:#92400e}
+.collapsible.tool-use .collapsible-content{background:#fffbeb}
+.collapsible.tool-result .collapsible-content{max-height:400px;overflow-y:auto}
+
+/* Markdown */
+.md h1{font-size:22px;font-weight:700;margin:16px 0 8px;padding-bottom:4px;border-bottom:1px solid #e5e7eb}
+.md h2{font-size:18px;font-weight:600;margin:14px 0 6px}
+.md h3{font-size:16px;font-weight:600;margin:12px 0 4px}
+.md h4{font-size:14px;font-weight:600;margin:10px 0 4px}
+.md p{margin:6px 0}
+.md ul,.md ol{margin:6px 0;padding-left:24px}
+.md li{margin:2px 0}
+.md blockquote{border-left:3px solid #d1d5db;padding:4px 12px;margin:8px 0;color:#6b7280;background:#f9fafb;border-radius:0 6px 6px 0}
+.md a{color:#2563eb;text-decoration:none}.md a:hover{text-decoration:underline}
+.md strong{font-weight:600}
+.md em{font-style:italic}
+.md hr{border:none;border-top:1px solid #e5e7eb;margin:12px 0}
+.md table{border-collapse:collapse;margin:8px 0;width:100%;font-size:14px}
+.md th,.md td{border:1px solid #d1d5db;padding:6px 10px;text-align:left}
+.md th{background:#f3f4f6;font-weight:600}
+.md pre{background:#1e1e2e;color:#cdd6f4;padding:14px 16px;border-radius:8px;overflow-x:auto;margin:8px 0;font-size:13px;line-height:1.5;position:relative}
+.md pre code{background:none;padding:0;color:inherit;font-size:inherit}
+.md code{background:#e5e7eb;padding:2px 6px;border-radius:4px;font-size:0.9em;font-family:"Fira Code",Consolas,Monaco,monospace}
+.copy-btn{position:absolute;top:8px;right:8px;background:#45475a;color:#cdd6f4;border:none;padding:4px 10px;border-radius:4px;cursor:pointer;font-size:12px;opacity:0;transition:opacity .2s}
+.md pre:hover .copy-btn{opacity:1}
+.copy-btn:hover{background:#585b70}
+.copy-btn.copied{background:#a6e3a1;color:#1e1e2e}
+
+/* Filter buttons */
+.filter-bar{display:flex;align-items:center;justify-content:center;gap:8px;padding:10px 16px;background:#fff;border-radius:8px;margin-bottom:16px;flex-wrap:wrap}
+.filter-bar label{font-size:13px;color:#4b5563;cursor:pointer;display:flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;transition:all .15s;user-select:none}
+.filter-bar label:hover{background:#f3f4f6}
+.filter-bar input[type=checkbox]{accent-color:#6366f1;width:14px;height:14px}
+.filter-bar .filter-user{border-bottom:2px solid #3b82f6}
+.filter-bar .filter-assistant{border-bottom:2px solid #10b981}
+.filter-bar .filter-tool-call{border-bottom:2px solid #f59e0b}
+.filter-bar .filter-tool{border-bottom:2px solid #a855f7}
+.filter-bar .filter-thinking{border-bottom:2px solid #7e22ce}
+
+/* Stats bar */
+.stats{text-align:center;padding:12px;color:#9ca3af;font-size:13px;border-bottom:1px solid #e5e7eb;margin-bottom:20px;background:#fff;border-radius:8px}
+.stats span{margin:0 12px}
+
+/* Meta info */
+.meta-badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:500;background:#e5e7eb;color:#6b7280;margin-left:8px}
+
+/* Empty state */
+.empty-main{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:#9ca3af;font-size:14px}
+
+/* Responsive */
+@media(max-width:768px){
+  .sidebar{width:240px;min-width:240px}
+}
+@media(max-width:600px){
+  .landing{margin:60px auto}
+  .drop-zone{padding:40px 20px}
+  .app-layout{flex-direction:column}
+  .sidebar{width:100%;min-width:100%;max-height:200px;border-right:none;border-bottom:1px solid #e0e0e0}
+  .main-area{padding:12px 8px 80px}
+  .msg-body{padding:10px 14px}
+  .header{padding:12px 16px}
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Chat Viewer</h1>
+  <div class="header-actions" id="headerActions" style="display:none">
+    <button class="btn btn-outline" onclick="addMore()">+ 继续添加</button>
+    <button class="btn btn-secondary" onclick="toggleBatchMode()" id="batchBtn">批量下载</button>
+    <button class="btn btn-primary" onclick="downloadSelected()" id="downloadSelectedBtn" style="display:none">下载选中</button>
+    <button class="btn btn-primary" onclick="download()" id="downloadOneBtn">下载当前 HTML</button>
+    <button class="btn btn-secondary" onclick="reset()">全部清除</button>
+  </div>
+</div>
+
+<div id="landing" class="landing">
+  <h2>Claude Code 对话查看器</h2>
+  <p>将导出的对话文件转换为阅读友好的 HTML</p>
+  <div class="drop-zone" id="dropZone" onclick="fileInput.click()">
+    <span class="drop-zone-icon">&#128196;</span>
+    <div class="drop-zone-text">拖拽 JSON / JSONL 文件到此处</div>
+    <div class="drop-zone-hint">或点击选择文件（支持多选）</div>
+  </div>
+  <input type="file" id="fileInput" accept=".json,.jsonl,.txt" multiple>
+  <div class="privacy">&#128274; 所有数据仅在浏览器本地处理，不会上传到任何服务器。断网也能用。</div>
+</div>
+
+<div id="appLayout" class="app-layout" style="display:none">
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <h3>对话列表</h3>
+      <span class="sidebar-count" id="sidebarCount">0</span>
+    </div>
+    <div class="sidebar-filter" id="sidebarFilter">
+      <div class="sidebar-filter-row">
+        <input type="text" id="searchInput" placeholder="搜索对话内容..." oninput="applyListFilter()" style="flex:1">
+      </div>
+      <div class="sidebar-filter-row">
+        <input type="date" id="filterFrom" title="起始日期" onchange="applyListFilter()">
+        <span style="font-size:12px;color:#9ca3af">~</span>
+        <input type="date" id="filterTo" title="结束日期" onchange="applyListFilter()">
+        <button class="filter-clear-btn" onclick="clearDateFilter()" title="清除筛选">&times;</button>
+      </div>
+      <div class="sidebar-filter-row">
+        <select id="sortOrder" onchange="applyListFilter()">
+          <option value="newest">最新在前</option>
+          <option value="oldest">最早在前</option>
+          <option value="name">按名称</option>
+        </select>
+      </div>
+    </div>
+    <div class="sidebar-list" id="sidebarList"></div>
+    <div class="sidebar-footer">
+      <button class="btn btn-outline" style="width:100%;font-size:13px" onclick="addMore()">+ 添加更多对话</button>
+    </div>
+  </div>
+  <div class="main-area" id="mainArea">
+    <div class="empty-main">选择左侧对话查看内容</div>
+  </div>
+</div>
+
+<input type="file" id="fileInputAdd" accept=".json,.jsonl,.txt" multiple style="display:none">
+
+<script>
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const fileInputAdd = document.getElementById('fileInputAdd');
+const landing = document.getElementById('landing');
+const appLayout = document.getElementById('appLayout');
+const mainArea = document.getElementById('mainArea');
+const headerActions = document.getElementById('headerActions');
+const sidebarList = document.getElementById('sidebarList');
+const sidebarCount = document.getElementById('sidebarCount');
+
+let conversations = []; // {id, fileName, title, preview, messages, dateStr, userCount, assistantCount, toolCount}
+let activeId = null;
+let batchMode = false;
+let selectedIds = new Set();
+
+// Drag & drop
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('dragover'); handleFiles(e.dataTransfer.files); });
+fileInput.addEventListener('change', e => { if(e.target.files.length) handleFiles(e.target.files); });
+fileInputAdd.addEventListener('change', e => { if(e.target.files.length) handleFiles(e.target.files); });
+
+// Also allow drop on the whole app layout
+document.body.addEventListener('dragover', e => { if (appLayout.style.display !== 'none') e.preventDefault(); });
+document.body.addEventListener('drop', e => { if (appLayout.style.display !== 'none') { e.preventDefault(); handleFiles(e.dataTransfer.files); } });
+
+function addMore() {
+  fileInputAdd.click();
+}
+
+function handleFiles(fileList) {
+  const files = Array.from(fileList);
+  let loaded = 0;
+  for (const file of files) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const messages = parseConversation(e.target.result);
+        if (messages.length === 0) throw new Error('没有有效消息');
+        const fileName = file.name.replace(/\.\w+$/, '');
+        const title = extractTitle(messages, fileName);
+        const preview = extractPreview(messages);
+        const id = Date.now() + '-' + Math.random().toString(36).substr(2,6);
+        const dateStr = extractDate(messages, file.lastModified);
+        const rawTs = extractRawTimestamp(messages, file.lastModified);
+        conversations.push({
+          id, fileName, title, preview, messages, dateStr, rawTs,
+          userCount: messages.filter(m => m.role === 'user').length,
+          assistantCount: messages.filter(m => m.role === 'assistant').length,
+          toolCallCount: messages.filter(m => m.role === 'tool_call').length,
+          toolCount: messages.filter(m => m.role === 'tool_result').length
+        });
+        loaded++;
+        if (loaded === files.length) {
+          showApp();
+          if (conversations.length === 1 || files.length === 1) {
+            selectConversation(conversations[conversations.length - 1].id);
+          }
+        }
+      } catch(err) {
+        loaded++;
+        alert(`解析 "${file.name}" 失败: ${err.message}`);
+        if (loaded === files.length && conversations.length > 0) showApp();
+      }
+    };
+    reader.readAsText(file, 'utf-8');
+  }
+}
+
+function extractTitle(messages, fileName) {
+  const firstUser = messages.find(m => m.role === 'user');
+  if (firstUser && firstUser.content) {
+    for (const block of firstUser.content) {
+      if (block.type === 'text' && block.text) {
+        const text = block.text.trim();
+        if (text.length > 0) {
+          return text.length > 60 ? text.substring(0, 57) + '...' : text;
+        }
+      }
+    }
+  }
+  return fileName;
+}
+
+function extractPreview(messages) {
+  const firstAssistant = messages.find(m => m.role === 'assistant');
+  if (firstAssistant && firstAssistant.content) {
+    for (const block of firstAssistant.content) {
+      if (block.type === 'text' && block.text) {
+        const text = block.text.trim();
+        if (text.length > 0) {
+          return text.length > 80 ? text.substring(0, 77) + '...' : text;
+        }
+      }
+    }
+  }
+  return '';
+}
+
+function extractDate(messages, fileLastModified) {
+  const firstTs = messages.find(m => m.timestamp)?.timestamp;
+  const ts = firstTs || fileLastModified;
+  if (!ts) return '';
+  try {
+    const d = new Date(ts);
+    return d.toLocaleString('zh-CN', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+  } catch { return ''; }
+}
+
+function extractRawTimestamp(messages, fileLastModified) {
+  const firstTs = messages.find(m => m.timestamp)?.timestamp;
+  const ts = firstTs || fileLastModified;
+  if (!ts) return 0;
+  try { return new Date(ts).getTime(); } catch { return 0; }
+}
+
+function buildSearchText(conv) {
+  if (conv._searchText) return conv._searchText;
+  const parts = [conv.title, conv.fileName];
+  for (const msg of conv.messages) {
+    if (!msg.content) continue;
+    for (const block of msg.content) {
+      if (block.type === 'text' && block.text) parts.push(block.text);
+      if (block.type === 'thinking' && block.thinking) parts.push(block.thinking);
+      if (block.type === 'tool_use' && block.name) parts.push(block.name);
+    }
+  }
+  conv._searchText = parts.join(' ').toLowerCase();
+  return conv._searchText;
+}
+
+function searchConversation(conv, query) {
+  const text = buildSearchText(conv);
+  return text.includes(query);
+}
+
+function getFilteredConversations() {
+  const from = document.getElementById('filterFrom').value;
+  const to = document.getElementById('filterTo').value;
+  const sortOrder = document.getElementById('sortOrder').value;
+  const query = (document.getElementById('searchInput').value || '').trim().toLowerCase();
+
+  let list = conversations.filter(conv => {
+    if (from || to) {
+      if (!conv.rawTs) return false;
+      const d = new Date(conv.rawTs);
+      const dateOnly = d.toISOString().slice(0, 10);
+      if (from && dateOnly < from) return false;
+      if (to && dateOnly > to) return false;
+    }
+    if (query) {
+      if (!searchConversation(conv, query)) return false;
+    }
+    return true;
+  });
+
+  if (sortOrder === 'newest') {
+    list.sort((a, b) => (b.rawTs || 0) - (a.rawTs || 0));
+  } else if (sortOrder === 'oldest') {
+    list.sort((a, b) => (a.rawTs || 0) - (b.rawTs || 0));
+  } else if (sortOrder === 'name') {
+    list.sort((a, b) => a.title.localeCompare(b.title, 'zh-CN'));
+  }
+
+  return list;
+}
+
+function applyListFilter() {
+  renderSidebar();
+}
+
+function clearDateFilter() {
+  document.getElementById('filterFrom').value = '';
+  document.getElementById('filterTo').value = '';
+  renderSidebar();
+}
+
+function showApp() {
+  landing.style.display = 'none';
+  appLayout.style.display = 'flex';
+  headerActions.style.display = 'flex';
+  renderSidebar();
+}
+
+function renderSidebar() {
+  const query = (document.getElementById('searchInput').value || '').trim().toLowerCase();
+  const displayList = getFilteredConversations();
+  sidebarCount.textContent = displayList.length + (displayList.length < conversations.length ? '/' + conversations.length : '');
+  sidebarList.innerHTML = '';
+  sidebarList.classList.toggle('batch-mode', batchMode);
+  for (const conv of displayList) {
+    const item = document.createElement('div');
+    item.className = 'sidebar-item' + (conv.id === activeId ? ' active' : '');
+    item.onclick = () => { if (!batchMode) selectConversation(conv.id); };
+    const checked = selectedIds.has(conv.id) ? 'checked' : '';
+
+    let hitsHtml = '';
+    if (query) {
+      const hits = findSearchHits(conv, query, 3);
+      if (hits.length > 0) {
+        hitsHtml = '<div class="search-hits">' + hits.map(h =>
+          `<div class="search-hit" onclick="event.stopPropagation();jumpToMessage('${conv.id}', ${h.msgIndex}, '${escapeAttr(query)}')">${h.snippet}</div>`
+        ).join('') + '</div>';
+      }
+    }
+
+    item.innerHTML = `
+      <input type="checkbox" class="batch-check" ${checked} onclick="event.stopPropagation();toggleSelect('${conv.id}', this.checked)">
+      <button class="remove-btn" onclick="event.stopPropagation();removeConversation('${conv.id}')" title="移除">&times;</button>
+      <div class="sidebar-item-title">${escapeHtml(conv.title)}</div>
+      ${conv.preview && !query ? `<div class="sidebar-item-preview">${escapeHtml(conv.preview)}</div>` : ''}
+      ${hitsHtml}
+      <div class="sidebar-item-meta">
+        <span>${escapeHtml(conv.fileName)}</span>
+        <span>${conv.messages.length} 条</span>
+        ${conv.dateStr ? `<span>${conv.dateStr}</span>` : ''}
+      </div>
+    `;
+    sidebarList.appendChild(item);
+  }
+}
+
+function escapeAttr(s) {
+  return s.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+}
+
+function findSearchHits(conv, query, maxHits) {
+  const hits = [];
+  for (let i = 0; i < conv.messages.length && hits.length < maxHits; i++) {
+    const msg = conv.messages[i];
+    if (!msg.content) continue;
+    for (const block of msg.content) {
+      if (hits.length >= maxHits) break;
+      const text = block.text || block.thinking || '';
+      if (!text) continue;
+      const lower = text.toLowerCase();
+      const idx = lower.indexOf(query);
+      if (idx === -1) continue;
+      const start = Math.max(0, idx - 20);
+      const end = Math.min(text.length, idx + query.length + 30);
+      const before = (start > 0 ? '...' : '') + escapeHtml(text.slice(start, idx));
+      const match = `<mark>${escapeHtml(text.slice(idx, idx + query.length))}</mark>`;
+      const after = escapeHtml(text.slice(idx + query.length, end)) + (end < text.length ? '...' : '');
+      const role = msg.role === 'user' ? 'U' : msg.role === 'assistant' ? 'A' : 'T';
+      hits.push({ msgIndex: i, snippet: `<span class="hit-role">${role}</span>${before}${match}${after}` });
+      break;
+    }
+  }
+  return hits;
+}
+
+function jumpToMessage(convId, msgIndex, query) {
+  selectConversation(convId);
+  const conv = conversations.find(c => c.id === convId);
+  if (!conv) return;
+
+  // Ensure the message is rendered (lazy load up to that point)
+  while (renderedCount <= msgIndex) {
+    renderBatch();
+  }
+
+  const container = document.getElementById('chatMessages');
+  if (!container) return;
+  const targetEl = container.children[msgIndex];
+  if (!targetEl) return;
+
+  // Highlight and scroll
+  targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  targetEl.classList.add('msg-highlight');
+  setTimeout(() => targetEl.classList.remove('msg-highlight'), 2500);
+
+  // Highlight matched text within the message
+  if (query) {
+    highlightInMessage(targetEl, query);
+  }
+}
+
+function highlightInMessage(el, query) {
+  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null);
+  const nodes = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+
+  for (const node of nodes) {
+    const idx = node.textContent.toLowerCase().indexOf(query.toLowerCase());
+    if (idx === -1) continue;
+    const range = document.createRange();
+    range.setStart(node, idx);
+    range.setEnd(node, idx + query.length);
+    const mark = document.createElement('mark');
+    mark.className = 'search-mark';
+    range.surroundContents(mark);
+    setTimeout(() => {
+      if (mark.parentNode) {
+        mark.outerHTML = mark.textContent;
+      }
+    }, 3000);
+    break;
+  }
+}
+
+function selectConversation(id) {
+  activeId = id;
+  renderSidebar();
+  const conv = conversations.find(c => c.id === id);
+  if (!conv) return;
+  renderChat(conv);
+}
+
+function removeConversation(id) {
+  conversations = conversations.filter(c => c.id !== id);
+  if (activeId === id) {
+    activeId = conversations.length > 0 ? conversations[0].id : null;
+  }
+  if (conversations.length === 0) {
+    reset();
+    return;
+  }
+  renderSidebar();
+  if (activeId) {
+    selectConversation(activeId);
+  } else {
+    mainArea.innerHTML = '<div class="empty-main">选择左侧对话查看内容</div>';
+  }
+}
+
+let filters = { user: true, assistant: true, tool_call: true, tool_result: true, thinking: true };
+const BATCH_SIZE = 40;
+let renderedCount = 0;
+let currentConv = null;
+let loadingMore = false;
+let scrollObserver = null;
+
+function renderChat(conv) {
+  currentConv = conv;
+  renderedCount = 0;
+  const {messages, userCount, assistantCount, toolCallCount, toolCount} = conv;
+  mainArea.innerHTML = '';
+
+  const statsDiv = document.createElement('div');
+  statsDiv.className = 'stats';
+  statsDiv.innerHTML = `<span>共 ${messages.length} 条消息</span><span>用户 ${userCount}</span><span>助手 ${assistantCount}</span><span>工具调用 ${toolCallCount}</span><span>工具返回 ${toolCount}</span>`;
+  mainArea.appendChild(statsDiv);
+
+  const filterBar = document.createElement('div');
+  filterBar.className = 'filter-bar';
+  filterBar.innerHTML = `
+    <span style="font-size:12px;color:#9ca3af;margin-right:4px">显示:</span>
+    <label class="filter-user"><input type="checkbox" ${filters.user ? 'checked' : ''} onchange="toggleFilter('user', this.checked)">用户</label>
+    <label class="filter-assistant"><input type="checkbox" ${filters.assistant ? 'checked' : ''} onchange="toggleFilter('assistant', this.checked)">助手回复</label>
+    <label class="filter-tool-call"><input type="checkbox" ${filters.tool_call ? 'checked' : ''} onchange="toggleFilter('tool_call', this.checked)">工具调用过程</label>
+    <label class="filter-tool"><input type="checkbox" ${filters.tool_result ? 'checked' : ''} onchange="toggleFilter('tool_result', this.checked)">工具返回</label>
+    <label class="filter-thinking"><input type="checkbox" ${filters.thinking ? 'checked' : ''} onchange="toggleFilter('thinking', this.checked)">思考过程</label>
+  `;
+  mainArea.appendChild(filterBar);
+
+  const container = document.createElement('div');
+  container.className = 'chat-container';
+  container.id = 'chatMessages';
+  mainArea.appendChild(container);
+
+  const sentinel = document.createElement('div');
+  sentinel.id = 'loadMoreSentinel';
+  sentinel.style.height = '1px';
+  mainArea.appendChild(sentinel);
+
+  renderBatch();
+  setupScrollObserver();
+  mainArea.scrollTop = 0;
+}
+
+function renderBatch() {
+  if (!currentConv || renderedCount >= currentConv.messages.length) return;
+  loadingMore = true;
+  const container = document.getElementById('chatMessages');
+  if (!container) return;
+
+  const fragment = document.createDocumentFragment();
+  const end = Math.min(renderedCount + BATCH_SIZE, currentConv.messages.length);
+  for (let i = renderedCount; i < end; i++) {
+    const el = createMessageEl(currentConv.messages[i]);
+    applyFilter(el, currentConv.messages[i]);
+    fragment.appendChild(el);
+  }
+  container.appendChild(fragment);
+  renderedCount = end;
+  loadingMore = false;
+
+  updateLoadProgress();
+}
+
+function updateLoadProgress() {
+  if (!currentConv) return;
+  let indicator = document.getElementById('loadProgress');
+  if (renderedCount >= currentConv.messages.length) {
+    if (indicator) indicator.remove();
+    return;
+  }
+  if (!indicator) {
+    indicator = document.createElement('div');
+    indicator.id = 'loadProgress';
+    indicator.style.cssText = 'text-align:center;padding:8px;color:#9ca3af;font-size:12px';
+    const sentinel = document.getElementById('loadMoreSentinel');
+    if (sentinel) sentinel.before(indicator);
+  }
+  indicator.textContent = `已加载 ${renderedCount} / ${currentConv.messages.length} 条消息`;
+}
+
+function setupScrollObserver() {
+  if (scrollObserver) scrollObserver.disconnect();
+  const sentinel = document.getElementById('loadMoreSentinel');
+  if (!sentinel) return;
+
+  scrollObserver = new IntersectionObserver(entries => {
+    if (entries[0].isIntersecting && !loadingMore) {
+      renderBatch();
+    }
+  }, { root: mainArea, rootMargin: '200px' });
+  scrollObserver.observe(sentinel);
+}
+
+function toggleFilter(type, checked) {
+  filters[type] = checked;
+  if (!currentConv) return;
+  const container = document.getElementById('chatMessages');
+  if (!container) return;
+  const els = container.children;
+  for (let i = 0; i < els.length; i++) {
+    applyFilter(els[i], currentConv.messages[i]);
+  }
+}
+
+function applyFilter(el, msg) {
+  if (!msg) return;
+  let visible = true;
+  if (msg.role === 'user' && !filters.user) visible = false;
+  if (msg.role === 'assistant' && !filters.assistant) visible = false;
+  if (msg.role === 'tool_call' && !filters.tool_call) visible = false;
+  if (msg.role === 'tool_result' && !filters.tool_result) visible = false;
+  el.style.display = visible ? '' : 'none';
+
+  if ((msg.role === 'assistant' || msg.role === 'tool_call') && el.style.display !== 'none') {
+    el.querySelectorAll('.collapsible.thinking').forEach(t => {
+      t.style.display = filters.thinking ? '' : 'none';
+    });
+  }
+}
+
+function parseConversation(text) {
+  text = text.trim();
+  let entries = [];
+
+  if (text.includes('\n') && text[0] === '{') {
+    const lines = text.split('\n');
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      try { entries.push(JSON.parse(trimmed)); } catch(e) {}
+    }
+  }
+
+  if (entries.length === 0) {
+    try {
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) {
+        entries = parsed;
+      } else if (parsed.chat_messages) {
+        entries = parsed.chat_messages;
+      } else if (parsed.messages) {
+        entries = parsed.messages;
+      } else {
+        entries = [parsed];
+      }
+    } catch(e) {
+      throw new Error('无法解析文件内容，请确认是 JSON 或 JSONL 格式');
+    }
+  }
+
+  const skipTypes = new Set(['queue-operation','file-history-snapshot','last-prompt','summary','login']);
+  const relevant = entries.filter(e => !skipTypes.has(e.type) && e.message);
+
+  const msgGroups = new Map();
+  const ordered = [];
+
+  for (const entry of relevant) {
+    const msgId = entry.message?.id;
+    if (entry.type === 'assistant' && msgId) {
+      if (!msgGroups.has(msgId)) {
+        msgGroups.set(msgId, { entries: [], index: ordered.length });
+        ordered.push({ groupId: msgId });
+      }
+      msgGroups.get(msgId).entries.push(entry);
+    } else {
+      ordered.push(entry);
+    }
+  }
+
+  const messages = [];
+  for (const item of ordered) {
+    if (item.groupId) {
+      const group = msgGroups.get(item.groupId);
+      const merged = mergeAssistantGroup(group.entries);
+      if (merged) messages.push(merged);
+    } else {
+      const normalized = normalizeEntry(item);
+      if (normalized) messages.push(normalized);
+    }
+  }
+
+  return messages;
+}
+
+function mergeAssistantGroup(entries) {
+  if (!entries.length) return null;
+  const final = entries.find(e => e.message?.stop_reason) || entries[entries.length - 1];
+  const allContent = [];
+  const seen = new Set();
+
+  for (const e of entries) {
+    const content = e.message?.content || [];
+    if (!Array.isArray(content)) continue;
+    for (const block of content) {
+      if (block.type === 'thinking' && block.thinking) {
+        const key = 'thinking:' + block.thinking.substring(0, 100);
+        if (!seen.has(key)) { seen.add(key); allContent.push(block); }
+      }
+    }
+  }
+
+  for (const e of entries) {
+    const content = e.message?.content || [];
+    if (!Array.isArray(content)) continue;
+    for (const block of content) {
+      if (block.type === 'tool_use' && block.id) {
+        if (!seen.has(block.id)) { seen.add(block.id); allContent.push(block); }
+      }
+    }
+  }
+
+  const finalContent = final.message?.content || [];
+  if (Array.isArray(finalContent)) {
+    for (const block of finalContent) {
+      if (block.type === 'text' && block.text && block.text.trim()) {
+        allContent.push(block);
+      }
+    }
+  }
+
+  if (allContent.length === 0) return null;
+
+  const hasText = allContent.some(b => b.type === 'text');
+  const hasToolUse = allContent.some(b => b.type === 'tool_use');
+
+  return {
+    role: hasText ? 'assistant' : (hasToolUse ? 'tool_call' : 'assistant'),
+    content: allContent,
+    timestamp: final.timestamp,
+    model: final.message?.model,
+    usage: final.message?.usage,
+    costUSD: final.costUSD,
+    isError: final.isApiErrorMessage
+  };
+}
+
+function normalizeEntry(entry) {
+  const msg = entry.message;
+  if (!msg) return null;
+
+  const content = msg.content;
+  let blocks = [];
+
+  if (typeof content === 'string') {
+    if (!content.trim()) return null;
+    blocks = [{ type: 'text', text: content }];
+  } else if (Array.isArray(content)) {
+    blocks = content;
+  }
+
+  if (entry.isMeta) return null;
+
+  const hasToolResult = blocks.some(b => b.type === 'tool_result');
+  const userTexts = blocks.filter(b => b.type === 'text' && b.text);
+
+  const cleanTexts = userTexts.filter(b => {
+    const t = b.text.trim();
+    return !t.startsWith('<local-command') && !t.startsWith('<ide_') && !t.startsWith('<command-') && !t.startsWith('<system-reminder');
+  });
+
+  if (entry.type === 'user' || msg.role === 'user') {
+    if (hasToolResult) {
+      return {
+        role: 'tool_result',
+        content: blocks.filter(b => b.type === 'tool_result'),
+        timestamp: entry.timestamp
+      };
+    }
+    if (cleanTexts.length === 0) return null;
+    return {
+      role: 'user',
+      content: cleanTexts,
+      timestamp: entry.timestamp
+    };
+  }
+
+  if (entry.type === 'assistant' || msg.role === 'assistant') {
+    const meaningful = blocks.filter(b =>
+      (b.type === 'text' && b.text && b.text.trim()) ||
+      b.type === 'thinking' ||
+      b.type === 'tool_use'
+    );
+    if (meaningful.length === 0) return null;
+    const hasText = meaningful.some(b => b.type === 'text');
+    const hasToolUse = meaningful.some(b => b.type === 'tool_use');
+    return {
+      role: hasText ? 'assistant' : (hasToolUse ? 'tool_call' : 'assistant'),
+      content: meaningful,
+      timestamp: entry.timestamp,
+      model: msg.model,
+      usage: msg.usage,
+      isError: entry.isApiErrorMessage
+    };
+  }
+
+  return null;
+}
+
+function createMessageEl(msg) {
+  const div = document.createElement('div');
+  div.className = 'msg ' + msg.role + '-msg';
+
+  const header = document.createElement('div');
+  header.className = 'msg-header';
+
+  const roleSpan = document.createElement('span');
+  roleSpan.className = 'msg-role ' + msg.role;
+  const roleNames = { user: 'User', assistant: 'Assistant', tool_call: 'Tool Call', tool_result: 'Tool Result', system: 'System' };
+  roleSpan.textContent = roleNames[msg.role] || msg.role;
+  header.appendChild(roleSpan);
+
+  if (msg.model) {
+    const badge = document.createElement('span');
+    badge.className = 'meta-badge';
+    badge.textContent = msg.model;
+    header.appendChild(badge);
+  }
+
+  if (msg.isError) {
+    const badge = document.createElement('span');
+    badge.className = 'meta-badge';
+    badge.style.background = '#fee2e2';
+    badge.style.color = '#dc2626';
+    badge.textContent = 'Error';
+    header.appendChild(badge);
+  }
+
+  if (msg.timestamp) {
+    const time = document.createElement('span');
+    time.className = 'msg-time';
+    time.textContent = formatTime(msg.timestamp);
+    header.appendChild(time);
+  }
+
+  div.appendChild(header);
+
+  const body = document.createElement('div');
+  body.className = 'msg-body';
+
+  for (const block of (msg.content || [])) {
+    if (block.type === 'text' && block.text) {
+      const md = document.createElement('div');
+      md.className = 'md';
+      md.innerHTML = renderMarkdown(block.text);
+      body.appendChild(md);
+    } else if (block.type === 'thinking' && block.thinking) {
+      body.appendChild(createCollapsible('Thinking', block.thinking, 'thinking'));
+    } else if (block.type === 'tool_use') {
+      const label = block.name + (block.input?.file_path ? ` (${shortPath(block.input.file_path)})` :
+                   block.input?.command ? ` (${block.input.command.substring(0,60)}...)` :
+                   block.input?.pattern ? ` (${block.input.pattern})` : '');
+      const detail = JSON.stringify(block.input || {}, null, 2);
+      body.appendChild(createCollapsible(label, detail, 'tool-use', true));
+    } else if (block.type === 'tool_result') {
+      const content = typeof block.content === 'string' ? block.content :
+                    Array.isArray(block.content) ? block.content.map(c => c.text || JSON.stringify(c)).join('\n') :
+                    JSON.stringify(block.content || '', null, 2);
+      const lines = content.split('\n').length;
+      body.appendChild(createCollapsible(`Result (${lines} lines)`, content, 'tool-result'));
+    }
+  }
+
+  div.appendChild(body);
+  return div;
+}
+
+function createCollapsible(label, content, type, isCode) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'collapsible ' + type;
+
+  const toggle = document.createElement('button');
+  toggle.className = 'collapsible-toggle';
+  toggle.innerHTML = `<span class="arrow">&#9654;</span> ${escapeHtml(label)}`;
+
+  const body = document.createElement('div');
+  body.className = 'collapsible-content';
+  if (isCode) {
+    body.innerHTML = `<pre style="margin:0;background:transparent;padding:0"><code>${escapeHtml(content)}</code></pre>`;
+  } else if (type === 'thinking') {
+    const md = document.createElement('div');
+    md.className = 'md';
+    md.innerHTML = renderMarkdown(content);
+    body.appendChild(md);
+  } else {
+    body.innerHTML = `<pre style="margin:0;background:transparent;padding:0;white-space:pre-wrap;word-break:break-all;font-size:12px">${escapeHtml(content)}</pre>`;
+  }
+
+  toggle.addEventListener('click', () => {
+    toggle.classList.toggle('open');
+    body.classList.toggle('open');
+  });
+
+  wrapper.appendChild(toggle);
+  wrapper.appendChild(body);
+  return wrapper;
+}
+
+function renderMarkdown(text) {
+  if (!text) return '';
+
+  const codeBlocks = [];
+  text = text.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
+    const i = codeBlocks.length;
+    codeBlocks.push({ lang, code });
+    return `\x00CODEBLOCK${i}\x00`;
+  });
+
+  text = escapeHtml(text);
+
+  text = text.replace(/\x00CODEBLOCK(\d+)\x00/g, (_, i) => {
+    const cb = codeBlocks[parseInt(i)];
+    const langLabel = cb.lang ? `<span style="position:absolute;top:6px;left:12px;font-size:11px;color:#7f849c">${cb.lang}</span>` : '';
+    return `</p><pre>${langLabel}<button class="copy-btn" onclick="copyCode(this)">Copy</button><code>${escapeHtml(cb.code)}</code></pre><p>`;
+  });
+
+  text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+  text = text.replace(/^#### (.+)$/gm, '</p><h4>$1</h4><p>');
+  text = text.replace(/^### (.+)$/gm, '</p><h3>$1</h3><p>');
+  text = text.replace(/^## (.+)$/gm, '</p><h2>$1</h2><p>');
+  text = text.replace(/^# (.+)$/gm, '</p><h1>$1</h1><p>');
+
+  text = text.replace(/^---+$/gm, '</p><hr><p>');
+
+  text = text.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+  text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  text = text.replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, '<em>$1</em>');
+
+  text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+
+  text = text.replace(/^&gt; (.+)$/gm, '</p><blockquote>$1</blockquote><p>');
+
+  text = text.replace(/(?:^(\|.+\|)\n(\|[-| :]+\|)\n((?:\|.+\|\n?)+))/gm, (match, headerRow, sepRow, bodyRows) => {
+    const headers = headerRow.split('|').filter(c => c.trim()).map(c => `<th>${c.trim()}</th>`).join('');
+    const rows = bodyRows.trim().split('\n').map(row => {
+      const cells = row.split('|').filter(c => c.trim()).map(c => `<td>${c.trim()}</td>`).join('');
+      return `<tr>${cells}</tr>`;
+    }).join('');
+    return `</p><table><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table><p>`;
+  });
+
+  text = text.replace(/(?:^- .+$\n?)+/gm, match => {
+    const items = match.trim().split('\n').map(l => `<li>${l.replace(/^- /, '')}</li>`).join('');
+    return `</p><ul>${items}</ul><p>`;
+  });
+
+  text = text.replace(/(?:^\d+\. .+$\n?)+/gm, match => {
+    const items = match.trim().split('\n').map(l => `<li>${l.replace(/^\d+\. /, '')}</li>`).join('');
+    return `</p><ol>${items}</ol><p>`;
+  });
+
+  text = text.replace(/\n\n+/g, '</p><p>');
+  text = text.replace(/\n/g, '<br>');
+  text = '<p>' + text + '</p>';
+
+  text = text.replace(/<p>\s*<\/p>/g, '');
+  text = text.replace(/<p><br>\s*<\/p>/g, '');
+
+  return text;
+}
+
+function escapeHtml(text) {
+  const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+  return text.replace(/[&<>"']/g, c => map[c]);
+}
+
+function shortPath(p) {
+  if (!p) return '';
+  const parts = p.replace(/\\/g, '/').split('/');
+  return parts.length > 2 ? '.../' + parts.slice(-2).join('/') : p;
+}
+
+function formatTime(ts) {
+  if (!ts) return '';
+  try {
+    const d = new Date(ts);
+    return d.toLocaleString('zh-CN', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit' });
+  } catch { return ''; }
+}
+
+function copyCode(btn) {
+  const code = btn.parentElement.querySelector('code').textContent;
+  navigator.clipboard.writeText(code).then(() => {
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+  });
+}
+
+function toggleBatchMode() {
+  batchMode = !batchMode;
+  selectedIds.clear();
+  document.getElementById('batchBtn').textContent = batchMode ? '取消批量' : '批量下载';
+  document.getElementById('downloadSelectedBtn').style.display = batchMode ? '' : 'none';
+  document.getElementById('downloadOneBtn').style.display = batchMode ? 'none' : '';
+  renderSidebar();
+}
+
+function toggleSelect(id, checked) {
+  if (checked) selectedIds.add(id);
+  else selectedIds.delete(id);
+  document.getElementById('downloadSelectedBtn').textContent = `下载选中 (${selectedIds.size})`;
+}
+
+function downloadSelected() {
+  if (selectedIds.size === 0) { alert('请先勾选要下载的对话'); return; }
+  for (const id of selectedIds) {
+    const conv = conversations.find(c => c.id === id);
+    if (conv) downloadOne(conv);
+  }
+}
+
+function downloadOne(conv) {
+  const css = document.querySelector('style').textContent;
+  const container = document.createElement('div');
+  container.className = 'chat-container';
+  for (const msg of conv.messages) {
+    container.appendChild(createMessageEl(msg));
+  }
+  const statsHtml = `<span>共 ${conv.messages.length} 条消息</span><span>用户 ${conv.userCount}</span><span>助手 ${conv.assistantCount}</span><span>工具调用 ${conv.toolCallCount}</span><span>工具返回 ${conv.toolCount}</span>`;
+
+  const html = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${escapeHtml(conv.title)} - Chat Viewer</title>
+<style>${css}</style>
+</head>
+<body>
+<div class="header"><h1>${escapeHtml(conv.title)}</h1></div>
+<div style="max-width:860px;margin:0 auto;padding:24px 16px 100px">
+<div class="stats">${statsHtml}</div>
+${container.innerHTML}
+</div>
+<script>
+function copyCode(btn){const code=btn.parentElement.querySelector('code').textContent;navigator.clipboard.writeText(code).then(()=>{btn.textContent='Copied!';btn.classList.add('copied');setTimeout(()=>{btn.textContent='Copy';btn.classList.remove('copied')},1500)})}
+document.querySelectorAll('.collapsible-toggle').forEach(t=>{t.addEventListener('click',()=>{t.classList.toggle('open');t.nextElementSibling.classList.toggle('open')})});
+<\/script>
+</body></html>`;
+
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = conv.fileName + '.html';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function reset() {
+  conversations = [];
+  activeId = null;
+  batchMode = false;
+  selectedIds.clear();
+  appLayout.style.display = 'none';
+  landing.style.display = 'block';
+  headerActions.style.display = 'none';
+  mainArea.innerHTML = '<div class="empty-main">选择左侧对话查看内容</div>';
+  fileInput.value = '';
+  fileInputAdd.value = '';
+}
+
+function download() {
+  if (!activeId) return;
+  const conv = conversations.find(c => c.id === activeId);
+  if (!conv) return;
+  downloadOne(conv);
+}
+</script>
+</body>
+</html>
