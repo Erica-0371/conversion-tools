@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Doc Convert - 文档格式转换</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #f5f5f5;
+  --surface: #ffffff;
+  --surface2: #f0f0f0;
+  --border: #e0e0e0;
+  --border-hover: #ccc;
+  --text: #1a1a1a;
+  --text-dim: #888;
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-light: rgba(37, 99, 235, 0.06);
+  --green: #16a34a;
+  --red: #dc2626;
+  --radius: 8px;
+  --code-bg: #f6f8fa;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+header {
+  padding: 14px 28px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--surface);
+}
+
+header h1 { font-size: 17px; font-weight: 600; }
+header .badge { font-size: 11px; color: var(--text-dim); background: var(--surface2); border: 1px solid var(--border); padding: 2px 8px; border-radius: 4px; }
+header .formats { margin-left: auto; font-size: 11px; color: var(--text-dim); }
+
+main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 18px 28px;
+  gap: 14px;
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* Drop zone */
+#drop-zone {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 30px 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: var(--surface);
+}
+#drop-zone:hover, #drop-zone.drag-over { border-color: var(--accent); background: var(--accent-light); }
+#drop-zone .icon { font-size: 28px; margin-bottom: 6px; opacity: 0.4; color: var(--text-dim); }
+#drop-zone .main-text { font-size: 14px; margin-bottom: 3px; }
+#drop-zone .sub-text { font-size: 12px; color: var(--text-dim); }
+#file-input { display: none; }
+
+/* Status */
+#status-bar { padding: 8px 14px; border-radius: 6px; font-size: 12px; border: 1px solid var(--border); display: none; }
+
+/* File list */
+#file-list { display: none; gap: 5px; flex-direction: column; }
+#file-list.visible { display: flex; }
+.file-list-header { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+.file-list-header .label { font-size: 12px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.4px; font-weight: 500; }
+.file-list-header .actions { margin-left: auto; display: flex; gap: 6px; }
+
+.file-item { display: flex; align-items: center; gap: 10px; padding: 7px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; transition: all 0.15s; font-size: 13px; }
+.file-item:hover { border-color: var(--border-hover); background: var(--surface2); }
+.file-item.active { border-color: var(--accent); background: var(--accent-light); }
+.file-item .fi-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-item .fi-ext { font-size: 10px; padding: 1px 5px; border-radius: 3px; background: var(--surface2); border: 1px solid var(--border); color: var(--text-dim); text-transform: uppercase; }
+.file-item .fi-status { font-size: 12px; }
+.file-item .fi-remove { opacity: 0; cursor: pointer; font-size: 14px; color: var(--text-dim); background: none; border: none; padding: 0 2px; transition: opacity 0.15s; }
+.file-item:hover .fi-remove { opacity: 0.6; }
+.file-item .fi-remove:hover { opacity: 1; color: var(--red); }
+
+/* Result area */
+#result { display: none; flex: 1; flex-direction: column; gap: 10px; }
+#result.visible { display: flex; }
+
+.toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.toolbar .filename { font-size: 13px; font-weight: 500; color: var(--accent); margin-right: auto; }
+.toolbar .stats { font-size: 11px; color: var(--text-dim); margin-right: 4px; }
+
+.btn { padding: 5px 12px; border-radius: 5px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 12px; cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+.btn:disabled { opacity: 0.4; pointer-events: none; }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-sm { padding: 3px 8px; font-size: 11px; }
+
+/* PDF settings row */
+.pdf-settings { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 8px 0; }
+.pdf-settings .field { display: flex; align-items: center; gap: 4px; }
+.pdf-settings label { font-size: 11px; color: var(--text-dim); }
+.pdf-settings select, .pdf-settings input { padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 12px; background: var(--surface); color: var(--text); }
+
+.tabs { display: flex; border-bottom: 1px solid var(--border); }
+.tab { padding: 6px 14px; font-size: 12px; cursor: pointer; border-bottom: 2px solid transparent; color: var(--text-dim); transition: all 0.15s; background: none; border-top: none; border-left: none; border-right: none; }
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+.output-wrap { flex: 1; min-height: 320px; position: relative; }
+
+#md-source, #md-preview {
+  position: absolute; inset: 0;
+  border: 1px solid var(--border); border-radius: var(--radius); overflow: auto;
+}
+#md-source {
+  width: 100%; height: 100%;
+  background: var(--surface); color: var(--text);
+  font-family: 'Cascadia Code', 'Fira Code', Consolas, monospace;
+  font-size: 13px; line-height: 1.6; padding: 14px;
+  resize: none; outline: none;
+}
+#md-preview { background: var(--surface); padding: 18px 22px; font-size: 14px; line-height: 1.7; }
+#md-preview h1 { font-size: 1.7em; margin: 0.5em 0 0.3em; border-bottom: 1px solid var(--border); padding-bottom: 0.2em; }
+#md-preview h2 { font-size: 1.35em; margin: 0.4em 0 0.25em; border-bottom: 1px solid var(--border); padding-bottom: 0.15em; }
+#md-preview h3 { font-size: 1.15em; margin: 0.35em 0 0.2em; }
+#md-preview p { margin: 0.4em 0; }
+#md-preview ul, #md-preview ol { padding-left: 1.5em; margin: 0.3em 0; }
+#md-preview li { margin: 0.15em 0; }
+#md-preview code { background: var(--code-bg); padding: 2px 5px; border-radius: 3px; font-size: 0.9em; color: #d63384; }
+#md-preview pre { background: var(--code-bg); padding: 12px 14px; border-radius: 6px; overflow-x: auto; margin: 0.5em 0; border: 1px solid var(--border); }
+#md-preview pre code { background: none; padding: 0; color: var(--text); }
+#md-preview blockquote { border-left: 3px solid var(--accent); padding-left: 12px; color: var(--text-dim); margin: 0.4em 0; }
+#md-preview table { border-collapse: collapse; width: 100%; margin: 0.5em 0; }
+#md-preview th, #md-preview td { border: 1px solid var(--border); padding: 5px 10px; text-align: left; }
+#md-preview th { background: var(--surface2); }
+#md-preview img { max-width: 100%; border-radius: 4px; }
+#md-preview a { color: var(--accent); }
+#md-preview hr { border: none; border-top: 1px solid var(--border); margin: 0.8em 0; }
+
+#lib-loading { position: fixed; bottom: 16px; right: 16px; padding: 8px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; font-size: 12px; color: var(--text-dim); z-index: 100; display: none; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+footer { padding: 10px 28px; text-align: center; font-size: 11px; color: var(--text-dim); border-top: 1px solid var(--border); background: var(--surface); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Doc Convert</h1>
+  <span class="badge">纯本地 · 不上传</span>
+  <span class="formats">输出：Markdown / PDF</span>
+</header>
+
+<main>
+  <div id="drop-zone">
+    <div class="icon">+</div>
+    <div class="main-text">拖拽文件到这里，或点击选择（支持多选）</div>
+    <div class="sub-text">支持 docx · html · htm · txt · csv · rtf · json · xml</div>
+  </div>
+  <input type="file" id="file-input" multiple accept=".docx,.html,.htm,.txt,.csv,.rtf,.json,.xml,.md">
+
+  <div id="status-bar"></div>
+
+  <div id="file-list">
+    <div class="file-list-header">
+      <span class="label">文件列表</span>
+      <div class="actions">
+        <button class="btn btn-sm" onclick="clearAllFiles()">清空</button>
+        <button class="btn btn-sm" onclick="downloadAllMd()">全部下载 MD</button>
+      </div>
+    </div>
+    <div id="file-items"></div>
+  </div>
+
+  <div id="result">
+    <div class="toolbar">
+      <span class="filename" id="out-filename"></span>
+      <span class="stats" id="out-stats"></span>
+      <button class="btn" onclick="copyMd()">复制 MD</button>
+      <button class="btn btn-primary" onclick="downloadCurrentMd()">下载 .md</button>
+      <button class="btn btn-primary" onclick="downloadPdf()">导出 PDF</button>
+    </div>
+
+    <div class="pdf-settings" id="pdf-settings">
+      <div class="field"><label>纸张</label><select id="page-size"><option value="A4">A4</option><option value="A3">A3</option><option value="A5">A5</option><option value="letter">Letter</option><option value="legal">Legal</option></select></div>
+      <div class="field"><label>方向</label><select id="orientation"><option value="portrait">纵向</option><option value="landscape">横向</option></select></div>
+      <div class="field"><label>边距mm</label><input type="number" id="margin" value="10" min="0" max="50" style="width:55px"></div>
+      <div class="field" style="margin-left:8px;font-size:11px;color:var(--text-dim);align-self:flex-end">点击导出后，在打印对话框中选"另存为 PDF"</div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="source" onclick="switchTab('source')">Markdown 源码</button>
+      <button class="tab" data-tab="preview" onclick="switchTab('preview')">渲染预览</button>
+    </div>
+
+    <div class="output-wrap">
+      <textarea id="md-source" spellcheck="false"></textarea>
+      <div id="md-preview"></div>
+    </div>
+  </div>
+</main>
+
+<div id="lib-loading">加载转换引擎中...</div>
+<footer>Doc Convert — 一切转换均在浏览器本地完成，文件不会离开你的设备</footer>
+
+<script>
+(function() {
+  'use strict';
+
+  const files = [];
+  let activeId = null;
+  let libsReady = false;
+  let turndownService = null;
+
+  const dropZone = document.getElementById('drop-zone');
+  const fileInput = document.getElementById('file-input');
+  const statusBar = document.getElementById('status-bar');
+  const fileListEl = document.getElementById('file-list');
+  const fileItemsEl = document.getElementById('file-items');
+  const resultEl = document.getElementById('result');
+  const sourceEl = document.getElementById('md-source');
+  const previewEl = document.getElementById('md-preview');
+  const filenameEl = document.getElementById('out-filename');
+  const statsEl = document.getElementById('out-stats');
+  const libLoading = document.getElementById('lib-loading');
+
+  function showSource() { sourceEl.style.display = 'block'; previewEl.style.display = 'none'; }
+  function showPreview() { sourceEl.style.display = 'none'; previewEl.style.display = 'block'; previewEl.innerHTML = renderPreview(sourceEl.value); }
+  showSource();
+
+  // ── Libs ──
+  const LIBS = [
+    { global: 'mammoth', sources: ['libs/mammoth.browser.min.js', 'https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js'] },
+    { global: 'TurndownService', sources: ['libs/turndown.js', 'https://cdn.jsdelivr.net/npm/turndown@7.2.0/dist/turndown.js'] },
+    { global: 'turndownPluginGfm', sources: ['libs/turndown-plugin-gfm.js', 'https://cdn.jsdelivr.net/npm/turndown-plugin-gfm@1.0.2/dist/turndown-plugin-gfm.js'] },
+    { global: 'marked', sources: ['libs/marked.min.js', 'https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js'] },
+  ];
+
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script'); s.src = src;
+      s.onload = resolve; s.onerror = () => reject(new Error('Failed: ' + src));
+      document.head.appendChild(s);
+    });
+  }
+
+  async function loadOneLib(lib) {
+    if (window[lib.global]) return;
+    for (const src of lib.sources) {
+      try { await loadScript(src); if (window[lib.global]) return; } catch {}
+    }
+    throw new Error(lib.global + ' 加载失败');
+  }
+
+  async function loadLibs() {
+    libLoading.style.display = 'block';
+    try {
+      for (const lib of LIBS) await loadOneLib(lib);
+      initTurndown();
+      libsReady = true;
+      libLoading.style.display = 'none';
+    } catch (e) {
+      libLoading.innerHTML = e.message + '<br>请确保 libs/ 目录与本文件在同一文件夹';
+      libLoading.style.color = '#dc2626'; libLoading.style.lineHeight = '1.5';
+      console.error(e);
+    }
+  }
+
+  function initTurndown() {
+    turndownService = new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced', emDelimiter: '*', bulletListMarker: '-', hr: '---' });
+    turndownService.use(turndownPluginGfm.gfm);
+    turndownService.addRule('removeEmptyP', { filter: n => n.nodeName === 'P' && !n.textContent.trim() && !n.querySelector('img'), replacement: () => '\n' });
+    turndownService.addRule('br', { filter: 'br', replacement: () => '\n' });
+    turndownService.addRule('p', { filter: 'p', replacement: c => '\n\n' + c.trim() + '\n\n' });
+  }
+
+  loadLibs();
+
+  // ── Events ──
+  dropZone.addEventListener('click', () => fileInput.click());
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); handleFiles(e.dataTransfer.files); });
+  fileInput.addEventListener('change', () => { handleFiles(fileInput.files); fileInput.value = ''; });
+  sourceEl.addEventListener('input', () => { const f = files.find(x => x.id === activeId); if (f) f.md = sourceEl.value; });
+
+  // ── File handling ──
+  async function handleFiles(fileList) {
+    if (!fileList || !fileList.length) return;
+    if (!libsReady) { showStatus('引擎加载中...', 'info'); await loadLibs(); if (!libsReady) { showStatus('引擎加载失败', 'error'); return; } }
+
+    const newItems = [];
+    for (const file of fileList) {
+      const ext = file.name.split('.').pop().toLowerCase();
+      const id = Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+      files.push({ id, name: file.name, ext, status: 'pending', md: '', htmlRaw: '', error: '', file });
+      newItems.push(files[files.length - 1]);
+    }
+    renderFileList();
+
+    let done = 0, failed = 0;
+    for (const item of newItems) {
+      item.status = 'converting'; renderFileList();
+      try {
+        const result = await convertFile(item.file, item.ext);
+        if (typeof result === 'object') { item.md = result.md; item.htmlRaw = result.html; }
+        else { item.md = result; }
+        item.status = 'done'; done++;
+      }
+      catch (e) { item.status = 'error'; item.error = e.message; failed++; console.error(e); }
+      renderFileList();
+    }
+    if (!activeId && files.length) selectFile(files[0].id);
+    showStatus(failed ? `完成 ${done}，失败 ${failed}` : `${done} 个文件已转换`, failed ? 'error' : 'success');
+  }
+
+  // ── Converters ──
+  const SUPPORTED = new Set(['docx','html','htm','txt','csv','rtf','json','xml','md']);
+
+  async function convertFile(file, ext) {
+    if (!SUPPORTED.has(ext)) throw new Error('不支持: .' + ext);
+    switch (ext) {
+      case 'docx': return convertDocx(file);
+      case 'html': case 'htm': return convertHtml(file);
+      case 'txt': return file.text().then(cleanMd);
+      case 'csv': return convertCsv(file);
+      case 'rtf': return convertRtf(file);
+      case 'json': return convertJson(file);
+      case 'xml': return convertXml(file);
+      case 'md': return file.text();
+      default: throw new Error('不支持');
+    }
+  }
+
+  async function convertDocx(file) {
+    const ab = await file.arrayBuffer();
+    const r = await mammoth.convertToHtml({ arrayBuffer: ab }, {
+      styleMap: ["p[style-name='Heading 1'] => h1:fresh","p[style-name='Heading 2'] => h2:fresh","p[style-name='Heading 3'] => h3:fresh","p[style-name='Heading 4'] => h4:fresh","p[style-name='Title'] => h1:fresh","p[style-name='Subtitle'] => h2:fresh","p[style-name='Quote'] => blockquote:fresh"],
+      includeDefaultStyleMap: true,
+      convertImage: mammoth.images.inline(el => el.read("base64").then(b => ({ src: "data:" + el.contentType + ";base64," + b })))
+    });
+    const html = r.value;
+    let md = turndownService.turndown(html);
+    return { md: cleanMd(fixDocx(md)), html: html };
+  }
+
+  function fixDocx(md) {
+    return md.replace(/\\([（）【】「」『』《》〈〉""''；：，。、！？…—])/g,'$1').replace(/\\\[/g,'[').replace(/\\\]/g,']').replace(/^(\d+)\\\./gm,'$1.').replace(/\n{4,}/g,'\n\n\n').replace(/[ \t]+$/gm,'').replace(/[​‌‍﻿]/g,'');
+  }
+
+  async function convertHtml(file) {
+    const text = await file.text();
+    const doc = new DOMParser().parseFromString(text, 'text/html');
+    doc.querySelectorAll('script,noscript,iframe').forEach(e => e.remove());
+    const title = doc.querySelector('title');
+    let pre = (title && title.textContent.trim()) ? '# ' + title.textContent.trim() + '\n\n' : '';
+
+    // For MD: strip more elements
+    const docForMd = new DOMParser().parseFromString(text, 'text/html');
+    docForMd.querySelectorAll('script,style,nav,footer,noscript,iframe,link,meta').forEach(e => e.remove());
+    const md = cleanMd(pre + turndownService.turndown((docForMd.body || docForMd.documentElement).innerHTML));
+
+    return { md, html: text };
+  }
+
+  async function convertCsv(file) {
+    const rows = parseCsv(await file.text());
+    if (!rows.length) return '';
+    const h = rows[0], n = h.length;
+    let md = '| ' + h.join(' | ') + ' |\n| ' + h.map(() => '---').join(' | ') + ' |\n';
+    for (let i = 1; i < rows.length; i++) { const r = rows[i]; while (r.length < n) r.push(''); md += '| ' + r.slice(0,n).join(' | ') + ' |\n'; }
+    return cleanMd(md);
+  }
+
+  function parseCsv(t) {
+    const rows = []; let cur = [], f = '', q = false;
+    for (let i = 0; i < t.length; i++) {
+      const c = t[i], nx = t[i+1];
+      if (q) { if (c === '"' && nx === '"') { f += '"'; i++; } else if (c === '"') q = false; else f += c; }
+      else { if (c === '"') q = true; else if (c === ',') { cur.push(f.trim()); f = ''; } else if (c === '\n' || (c === '\r' && nx === '\n')) { cur.push(f.trim()); if (cur.some(x => x)) rows.push(cur); cur = []; f = ''; if (c === '\r') i++; } else f += c; }
+    }
+    if (f || cur.length) { cur.push(f.trim()); if (cur.some(x => x)) rows.push(cur); }
+    return rows;
+  }
+
+  async function convertRtf(file) {
+    let r = await file.text();
+    r = r.replace(/\{\\(?:pict|fonttbl|colortbl|stylesheet|info|header|footer|footnote)[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/gi,'');
+    r = r.replace(/\\par\b\s*/g,'\n').replace(/\\line\b\s*/g,'\n').replace(/\\tab\b\s*/g,'\t').replace(/\\\n/g,'\n').replace(/\\pard[^\\]*/g,'');
+    r = r.replace(/\\'([0-9a-fA-F]{2})/g,(_,h) => String.fromCharCode(parseInt(h,16)));
+    r = r.replace(/\\u(\d+)\s?\??/g,(_,c) => String.fromCharCode(parseInt(c,10)));
+    r = r.replace(/\\[a-z]+\d*\s?/gi,'').replace(/[{}]/g,'').replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+    return cleanMd(r);
+  }
+
+  async function convertJson(file) { const t = await file.text(); try { return cleanMd('```json\n' + JSON.stringify(JSON.parse(t),null,2) + '\n```'); } catch { return cleanMd('```\n' + t + '\n```'); } }
+
+  async function convertXml(file) {
+    const t = await file.text();
+    const doc = new DOMParser().parseFromString(t, 'text/xml');
+    if (doc.querySelector('parsererror')) return cleanMd('```xml\n' + t + '\n```');
+    function ext(n, d) {
+      if (n.nodeType === 3) { const s = n.textContent.trim(); return s ? s + '\n' : ''; }
+      if (n.nodeType !== 1) return '';
+      const ch = Array.from(n.childNodes), hasEl = ch.some(c => c.nodeType === 1);
+      if (hasEl) { let r = '\n' + (d<=6 ? '#'.repeat(d)+' ' : '**') + n.nodeName + (d<=6 ? '' : '**') + '\n\n'; ch.forEach(c => r += ext(c,d+1)); return r; }
+      const txt = n.textContent.trim(); return txt ? '**' + n.nodeName + '**: ' + txt + '\n\n' : '';
+    }
+    return cleanMd(ext(doc.documentElement, 1));
+  }
+
+  function cleanMd(md) { return md.replace(/\r\n/g,'\n').replace(/\n{3,}/g,'\n\n').replace(/^[\s\n]+/,'').replace(/[\s\n]+$/,'') + '\n'; }
+
+  // ── UI ──
+  function showStatus(msg, type) {
+    statusBar.textContent = msg; statusBar.style.display = 'block';
+    statusBar.style.background = type==='error'?'#fef2f2':type==='success'?'#f0fdf4':'#eff6ff';
+    statusBar.style.borderColor = type==='error'?'#fecaca':type==='success'?'#bbf7d0':'#bfdbfe';
+    statusBar.style.color = type==='error'?'#dc2626':type==='success'?'#16a34a':'#2563eb';
+    if (type !== 'error') setTimeout(() => { if (statusBar.textContent === msg) statusBar.style.display = 'none'; }, 3000);
+  }
+
+  function renderFileList() {
+    if (!files.length) { fileListEl.classList.remove('visible'); return; }
+    fileListEl.classList.add('visible');
+    fileItemsEl.innerHTML = files.map(f => `
+      <div class="file-item ${f.id===activeId?'active':''}" onclick="window._sel('${f.id}')" title="${f.error||f.name}">
+        <span class="fi-name">${esc(f.name)}</span>
+        <span class="fi-ext">${f.ext}</span>
+        <span class="fi-status" style="color:${f.status==='done'?'var(--green)':f.status==='error'?'var(--red)':'var(--text-dim)'}">${f.status==='done'?'✓':f.status==='error'?'✗':'...'}</span>
+        <button class="fi-remove" onclick="event.stopPropagation();window._rm('${f.id}')">×</button>
+      </div>`).join('');
+  }
+
+  function selectFile(id) {
+    const item = files.find(f => f.id === id); if (!item) return;
+    activeId = id; renderFileList();
+    if (item.md) {
+      resultEl.classList.add('visible'); sourceEl.value = item.md;
+      filenameEl.textContent = item.name.replace(/\.[^.]+$/,'') + '.md';
+      statsEl.textContent = `${item.md.split('\n').length} 行 · ${item.md.length} 字符`;
+      switchTab('source');
+    } else if (item.error) { resultEl.classList.remove('visible'); showStatus(item.name + ': ' + item.error, 'error'); }
+  }
+
+  window._sel = selectFile;
+  window._rm = function(id) {
+    const i = files.findIndex(f => f.id === id); if (i < 0) return;
+    files.splice(i, 1);
+    if (activeId === id) { activeId = null; resultEl.classList.remove('visible'); if (files.length) selectFile(files[Math.min(i, files.length-1)].id); }
+    renderFileList();
+  };
+
+  window.switchTab = function(tab) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+    tab === 'source' ? showSource() : showPreview();
+  };
+
+  function renderPreview(md) { return window.marked ? marked.parse(md) : '<p style="color:var(--text-dim)">预览引擎未加载</p>'; }
+
+  // ── Actions: Markdown ──
+  window.copyMd = async function() {
+    const md = sourceEl.value; if (!md) return;
+    try { await navigator.clipboard.writeText(md); } catch { sourceEl.select(); document.execCommand('copy'); }
+    showStatus('已复制', 'success');
+  };
+
+  window.downloadCurrentMd = function() {
+    const item = files.find(f => f.id === activeId); if (!item) return;
+    const def = item.name.replace(/\.[^.]+$/,'') + '.md';
+    const name = prompt('文件名：', def); if (!name) return;
+    dl(name.endsWith('.md') ? name : name + '.md', sourceEl.value, 'text/markdown');
+  };
+
+  window.downloadAllMd = function() {
+    const done = files.filter(f => f.status === 'done' && f.md); if (!done.length) return;
+    done.forEach(f => dl(f.name.replace(/\.[^.]+$/,'') + '.md', f.md, 'text/markdown'));
+    showStatus(`已下载 ${done.length} 个`, 'success');
+  };
+
+  window.clearAllFiles = function() { files.length = 0; activeId = null; resultEl.classList.remove('visible'); renderFileList(); };
+
+  // ── Actions: PDF (native print) ──
+  window.downloadPdf = function() {
+    const item = files.find(f => f.id === activeId);
+    if (!item) return;
+
+    const pageSize = document.getElementById('page-size').value;
+    const orientation = document.getElementById('orientation').value;
+    const margin = document.getElementById('margin').value + 'mm';
+
+    const pageCss = `@page { size: ${pageSize} ${orientation}; margin: ${margin}; }`;
+
+    let bodyHtml = '';
+    let headExtra = '';
+
+    if (item.htmlRaw) {
+      // HTML/docx: use original HTML with styles
+      const doc = new DOMParser().parseFromString(item.htmlRaw, 'text/html');
+      doc.querySelectorAll('script,noscript,iframe').forEach(e => e.remove());
+      headExtra = Array.from(doc.querySelectorAll('style,link[rel="stylesheet"]'))
+        .map(e => e.outerHTML).join('\n');
+      bodyHtml = (doc.body || doc.documentElement).innerHTML;
+    } else {
+      // Other formats: render markdown
+      bodyHtml = marked.parse(sourceEl.value);
+      headExtra = `<style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.7; color: #1a1a1a; }
+        h1 { font-size: 1.8em; margin: 0.6em 0 0.3em; border-bottom: 1px solid #eee; padding-bottom: 0.2em; }
+        h2 { font-size: 1.4em; margin: 0.5em 0 0.25em; border-bottom: 1px solid #eee; padding-bottom: 0.15em; }
+        h3 { font-size: 1.2em; margin: 0.4em 0 0.2em; }
+        p { margin: 0.5em 0; }
+        ul, ol { padding-left: 1.5em; margin: 0.4em 0; }
+        li { margin: 0.2em 0; }
+        table { border-collapse: collapse; width: 100%; margin: 0.6em 0; }
+        th, td { border: 1px solid #ddd; padding: 6px 10px; text-align: left; }
+        th { background: #f5f5f5; font-weight: 600; }
+        pre { background: #f6f8fa; padding: 12px 14px; border-radius: 6px; overflow-x: auto; margin: 0.6em 0; font-size: 13px; }
+        code { background: #f0f0f0; padding: 2px 5px; border-radius: 3px; font-size: 0.9em; }
+        pre code { background: none; padding: 0; }
+        blockquote { border-left: 3px solid #2563eb; padding-left: 12px; color: #555; margin: 0.5em 0; }
+        img { max-width: 100%; }
+        hr { border: none; border-top: 1px solid #eee; margin: 1em 0; }
+      </style>`;
+    }
+
+    const printWin = window.open('', '_blank');
+    if (!printWin) {
+      showStatus('弹窗被拦截，请允许弹出窗口后重试', 'error');
+      return;
+    }
+
+    printWin.document.write(`<!DOCTYPE html><html><head>
+      <meta charset="UTF-8">
+      <title>${esc(item.name)} - PDF</title>
+      ${headExtra}
+      <style>${pageCss}
+        @media print {
+          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
+      </style>
+    </head><body>${bodyHtml}</body></html>`);
+    printWin.document.close();
+
+    printWin.onload = function() {
+      setTimeout(() => { printWin.print(); }, 200);
+    };
+  };
+
+  function dl(name, content, type) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([content], { type: type + ';charset=utf-8' }));
+    a.download = name; a.click(); URL.revokeObjectURL(a.href);
+  }
+
+  function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+})();
+</script>
+</body>
+</html>
